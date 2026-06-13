@@ -1,0 +1,490 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Certificado Médico MTC - Formato Exacto A4</title>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+    <style>
+        :root { 
+            --borde-color: #000;
+        }
+        * { box-sizing: border-box; margin: 0; padding: 0; font-family: Arial, sans-serif; }
+        
+        body { background: #525659; padding: 20px; display: flex; flex-direction: column; align-items: center; }
+
+        /* Barra de herramientas */
+        .toolbar { width: 100%; max-width: 210mm; margin-bottom: 20px; background: #fff; padding: 15px; border-radius: 8px; display: flex; gap: 10px; box-shadow: 0 4px 6px rgba(0,0,0,0.1); }
+        .input-mail { flex: 1; padding: 12px; border: 1px solid #ccc; border-radius: 6px; font-size: 14px; }
+        .btn-action { background: #00b894; color: white; border: none; padding: 12px 20px; border-radius: 6px; cursor: pointer; font-weight: bold; font-size: 14px; }
+        .btn-print { background: #1e293b; color: white; border: none; padding: 12px 20px; border-radius: 6px; cursor: pointer; font-weight: bold; font-size: 14px; }
+
+        /* Contenedor Principal A4 EXACTO */
+        .doc-container { 
+            width: 210mm; 
+            height: 297mm; /* Medida estricta del A4 */
+            background: white; 
+            padding: 10mm 15mm; 
+            position: relative; 
+            box-shadow: 0 0 15px rgba(0,0,0,0.3); 
+            font-size: 11px;
+            color: #000;
+            overflow: hidden; /* Mantiene todo adentro */
+        }
+
+        /* Textos Verticales Pegados a los Bordes EXACTOS */
+        .vertical-text-left {
+            position: absolute;
+            left: 5mm; /* Estrictamente al borde izquierdo */
+            top: 50%;
+            transform: translateY(-50%) rotate(180deg);
+            writing-mode: vertical-rl; /* Solución para textos largos rotados */
+            font-weight: bold;
+            font-size: 10px;
+            letter-spacing: 1px;
+            color: #000;
+            white-space: nowrap;
+        }
+
+        .vertical-text-right {
+            position: absolute;
+            right: 2mm; /* Mantenido igual de perfecto */
+            top: 50%;
+            transform: translateY(-50%) rotate(90deg);
+            font-weight: bold;
+            font-size: 11px;
+            letter-spacing: 1px;
+            color: #000;
+            white-space: nowrap;
+        }
+
+        [contenteditable="true"] { outline: none; border-bottom: 1px dotted transparent; padding: 2px; min-width: 50px; display: inline-block; }
+        [contenteditable="true"]:focus { border-bottom: 1px dotted #666; background: #f9f9f9; }
+
+        /* Estructura de Tablas Generales */
+        .border-box { border: 1.5px solid var(--borde-color); border-radius: 6px; padding: 4px 6px; margin-bottom: 6px; }
+        table.full-width { width: 100%; border-collapse: collapse; }
+        table.bordered td { border: 1px solid var(--borde-color); padding: 4px; vertical-align: middle; }
+        
+        /* Banner Header */
+        .header-banner { width: 100%; height: auto; max-height: 65px; object-fit: contain; margin-bottom: 5px; }
+
+        /* Título y Foto */
+        .title-section { display: flex; justify-content: space-between; align-items: stretch; margin-bottom: 8px; height: 75px; }
+        .title-box { flex: 1; border: 1.5px solid var(--borde-color); border-radius: 8px; text-align: center; display: flex; flex-direction: column; justify-content: center; padding: 8px; }
+        .form-number { font-weight: bold; font-size: 11px; margin-bottom: 3px; text-align: left; }
+        .main-title { font-size: 17px; font-weight: bold; }
+        
+        /* Box de foto listo para carga manual */
+        .photo-box { width: 25mm; border: 1.5px solid var(--borde-color); border-radius: 8px; margin-left: 10px; display: flex; flex-direction: column; align-items: center; justify-content: center; text-align: center; position: relative; background-size: cover; background-position: center; overflow: hidden; background-color: #fff; cursor: pointer; }
+
+        /* Subtítulos de sección */
+        .section-title { font-weight: bold; font-size: 10px; padding: 2px 4px; border-bottom: 1px solid var(--borde-color); background: #fdfdfd; margin-bottom: 4px; }
+
+        /* Checkboxes Personalizados y Alineados */
+        .check-container { display: flex; align-items: center; justify-content: space-between; cursor: pointer; }
+        .check-box { width: 12px; height: 12px; border: 1px solid #000; display: flex; align-items: center; justify-content: center; font-weight: bold; font-size: 10px; background: #fff; flex-shrink: 0; margin-left: 8px; }
+        .check-container input { display: none; }
+        .check-container input:checked + .check-box::after { content: 'X'; }
+
+        /* Contenedores para agrupar y centrar checkboxes */
+        .check-group { display: flex; flex-direction: column; gap: 4px; justify-content: center; }
+        .check-item-fixed { width: 200px; } 
+
+        /* Tablas Internas */
+        .grid-2col { display: grid; grid-template-columns: 1fr 1fr; gap: 4px; }
+        .input-line { display: flex; align-items: baseline; margin-bottom: 6px; }
+        .input-line span { white-space: nowrap; margin-right: 5px; }
+        .dotted-line { flex: 1; border-bottom: 1px dotted #000; min-height: 14px; }
+
+        /* Firmas Ajustadas para imágenes locales */
+        .firmas-grid { display: grid; grid-template-columns: 1fr 1fr 1fr; border: 1.5px solid var(--borde-color); border-radius: 6px; overflow: hidden; margin-top: 4px; }
+        .firma-box { border-right: 1px solid #000; border-bottom: 1px solid #000; height: 95px; display: flex; flex-direction: column; justify-content: space-between; position: relative; background-size: contain; background-position: center; background-repeat: no-repeat; background-color: #fff; }
+        .firma-box:nth-child(3n) { border-right: none; }
+        .firma-box:nth-child(4), .firma-box:nth-child(5) { border-bottom: none; }
+        .director-box { grid-column: 3; grid-row: 1 / span 2; border-bottom: none !important; border-right: none !important; height: 190px; }
+        .firma-title { text-align: center; font-size: 8px; font-weight: bold; padding: 3px; border-bottom: 1px solid #000; background: rgba(255, 255, 255, 0.9); }
+
+        /* Select personalizado */
+        select.custom-select { border: none; outline: none; font-size: 11px; background: transparent; cursor: pointer; width: 100%; border-bottom: 1px dotted #000; }
+
+        /* AJUSTES EXACTOS PARA IMPRESIÓN A4 */
+        @page { size: A4; margin: 0; }
+        @media print { 
+            .toolbar { display: none; } 
+            body { background: white; padding: 0; margin: 0; } 
+            .doc-container { box-shadow: none; width: 210mm; height: 297mm; margin: 0; padding: 10mm 15mm; page-break-after: avoid; } 
+            [contenteditable="true"] { border-bottom: none !important; }
+            select.custom-select { appearance: none; -webkit-appearance: none; -moz-appearance: none; border: none; }
+            * { -webkit-print-color-adjust: exact !important; print-color-adjust: exact !important; }
+        }
+    </style>
+</head>
+<body>
+
+    <div class="toolbar">
+        <input type="email" id="emailDestino" class="input-mail" placeholder="Correo para enviar el certificado PDF...">
+        <button class="btn-action" onclick="enviarTodo()">📧 ENVIAR POR CORREO</button>
+        <button class="btn-print" onclick="descargarPDF()">📥 DESCARGAR PDF</button>
+    </div>
+
+    <div class="doc-container" id="hoja-medico">
+        
+        <div class="vertical-text-left">NO SE ACEPTAN BORRONES NI ENMENDADURAS</div>
+        <div class="vertical-text-right">FORMULARIO</div>
+
+        <img src="PCM-Salud.jpg" alt="Logo Ministerio" class="header-banner">
+
+        <div style="text-align: center; border: 1.5px solid #000; border-radius: 8px; margin-bottom: 5px; padding: 2px; font-weight: bold; font-size: 10px;">
+            DIRECCIÓN GENERAL DE CAMINOS Y FERROCARRILES
+        </div>
+
+        <div style="text-align: right; font-size: 10px; margin-bottom: 5px; font-weight: bold;">
+            Fecha de emisión: <span id="fecha-hora-exacta" style="color: blue;">Cargando...</span>
+        </div>
+
+        <div class="title-section">
+            <div class="title-box">
+                <div style="display: flex; justify-content: space-between; width: 100%;">
+                    <div class="form-number">FORMULARIO<br>005/14.08</div>
+                </div>
+                <div class="main-title">CERTIFICADO DE<br>EXAMEN MÉDICO-PSICOSOMÁTICO</div>
+            </div>
+            
+            <div class="photo-box" id="box-foto" onclick="document.getElementById('upload-foto').click()">
+                <span style="background: rgba(255,255,255,0.7); padding: 2px;">Foto Actual<br>Frente<br><br>(No escaneada)</span>
+            </div>
+            <input type="file" id="upload-foto" accept="image/*" style="display: none;" onchange="cargarFoto(event)">
+
+        </div>
+
+        <div class="border-box">
+            <div class="section-title">I. DATOS DEL CERTIFICADO</div>
+            <table class="full-width bordered" style="border:none;">
+                <tr>
+                    <td style="width: 70%; border-left:none; border-top:none; padding: 2px 4px;">
+                        CENTRO DE SALUD: 
+                        <select id="centroSalud" class="custom-select" style="width: auto; font-weight:bold;" onchange="actualizarDireccion()">
+                            <option value="">-- Seleccionar --</option>
+                            <option value="Amazonas">AMAZONAS</option>
+                            <option value="Ancash">ÁNCASH</option>
+                            <option value="Apurimac">APURÍMAC</option>
+                            <option value="Arequipa">AREQUIPA</option>
+                            <option value="Ayacucho">AYACUCHO</option>
+                            <option value="Cajamarca">CAJAMARCA</option>
+                            <option value="Cusco">CUSCO</option>
+                            <option value="Huancavelica">HUANCAVELICA</option>
+                            <option value="Huanuco">HUÁNUCO</option>
+                            <option value="Ica">ICA</option>
+                            <option value="Junin">JUNÍN</option>
+                            <option value="Lambayeque">LAMBAYEQUE</option>
+                            <option value="Lima">LIMA</option>
+                            <option value="Loreto">LORETO</option>
+                            <option value="MadreDeDios">MADRE DE DIOS</option>
+                            <option value="Moquegua">MOQUEGUA</option>
+                            <option value="Pasco">PASCO</option>
+                            <option value="Piura">PIURA</option>
+                            <option value="Puno">PUNO</option>
+                            <option value="SanMartin">SAN MARTÍN</option>
+                            <option value="Tacna">TACNA</option>
+                            <option value="Trujillo">TRUJILLO (LA LIBERTAD)</option>
+                            <option value="Tumbes">TUMBES</option>
+                            <option value="Ucayali">UCAYALI</option>
+                        </select>
+                    </td>
+                    <td style="width: 30%; border-right:none; border-top:none; padding: 2px 4px;">
+                        TELÉFONO: <div contenteditable="true" style="width: 60%;"></div>
+                    </td>
+                </tr>
+                <tr>
+                    <td colspan="2" style="border-left:none; border-right:none; padding: 2px 4px;">
+                        DIRECCIÓN: <div id="direccionText" contenteditable="true" style="font-weight:bold;"></div>
+                    </td>
+                </tr>
+                <tr>
+                    <td colspan="2" style="border-left:none; border-right:none; border-bottom:none; text-align: center; padding: 2px 4px;">
+                        <span style="font-size: 8px;">DIRECTOR(A) DEL CENTRO DE RECONOCIMIENTO PARA EL EXAMEN PSICOSOMÁTICO</span><br>
+                        <div contenteditable="true" style="width: 80%; border-bottom: 1px dotted #000; margin-top:2px;"></div>
+                    </td>
+                </tr>
+            </table>
+        </div>
+
+        <div class="border-box" style="padding: 6px;">
+            <div class="section-title" style="margin-bottom: 6px; border: none; padding:0;">INFORMA QUE:</div>
+            
+            <div class="input-line">
+                <span>El señor(a):</span>
+                <div class="dotted-line" contenteditable="true" id="nombrePostulante"></div>
+            </div>
+            <div class="input-line">
+                <span>Identificado con D.N.I. Nº</span>
+                <div class="dotted-line" style="flex: 0 0 150px;" contenteditable="true" id="dniPostulante"></div>
+                <span>, se le ha realizado el examen de aptitud médica y psicológica necesarias para:</span>
+            </div>
+
+            <div style="display: flex; justify-content: space-around; margin: 10px 0 4px 0;">
+                <label class="check-container"><span>OBTENCIÓN</span> <input type="checkbox"><span class="check-box"></span></label>
+                <label class="check-container"><span>RECATEGORIZACIÓN</span> <input type="checkbox"><span class="check-box"></span></label>
+                <label class="check-container"><span>REVALIDACIÓN</span> <input type="checkbox"><span class="check-box"></span></label>
+            </div>
+        </div>
+
+        <div class="border-box">
+            <div class="section-title" style="margin-bottom: 0;">De la Licencia de Conducir:</div>
+            <div style="display: flex; justify-content: space-between; padding: 8px 10px; align-items: center;">
+                <div class="check-group">
+                    <label class="check-container check-item-fixed"><span>Autoriza conducir Locomotora</span> <input type="checkbox"><span class="check-box"></span></label>
+                    <label class="check-container check-item-fixed"><span>Autoriza conducir Autovagón</span> <input type="checkbox"><span class="check-box"></span></label>
+                    <label class="check-container check-item-fixed"><span>Autoriza conducir Autovía - Autocarril</span> <input type="checkbox"><span class="check-box"></span></label>
+                </div>
+                <div style="width: 50%;">
+                    <div style="margin-bottom: 4px; text-align: center;">Autoriza conducir Equipos de Mantenimiento de Vía:</div>
+                    <div class="grid-2col">
+                        <label class="check-container"><span>Rameadora</span> <input type="checkbox"><span class="check-box"></span></label>
+                        <label class="check-container"><span>Grúas</span> <input type="checkbox"><span class="check-box"></span></label>
+                        <label class="check-container"><span>Cambiadora de Durmiente</span> <input type="checkbox"><span class="check-box"></span></label>
+                        <label class="check-container"><span>High Rail</span> <input type="checkbox"><span class="check-box"></span></label>
+                    </div>
+                </div>
+            </div>
+            <div class="input-line" style="padding: 0 10px; margin-bottom: 4px;">
+                <span>Otros:</span><div class="dotted-line" contenteditable="true"></div>
+            </div>
+        </div>
+
+        <div class="border-box">
+            <div class="section-title" style="margin-bottom: 0;">Teniendo como resultado:</div>
+            <table class="full-width bordered" style="border:none;">
+                <tr>
+                    <td style="width: 32%; border-left:none; padding: 2px 10px;">
+                        <label class="check-container"><span>Examen clínico</span> <input type="checkbox"><span class="check-box"></span></label>
+                    </td>
+                    <td style="border-right:none; padding: 2px 4px;"><div contenteditable="true" style="width: 100%;"></div></td>
+                </tr>
+                <tr>
+                    <td style="border-left:none; padding: 2px 10px;">
+                        <label class="check-container"><span>Examen otorrinolaringológico</span> <input type="checkbox"><span class="check-box"></span></label>
+                    </td>
+                    <td style="border-right:none; padding: 2px 4px;"><div contenteditable="true" style="width: 100%;"></div></td>
+                </tr>
+                <tr>
+                    <td style="border-left:none; padding: 2px 10px;">
+                        <label class="check-container"><span>Examen oftalmológico</span> <input type="checkbox"><span class="check-box"></span></label>
+                    </td>
+                    <td style="border-right:none; padding: 2px 4px;"><div contenteditable="true" style="width: 100%;"></div></td>
+                </tr>
+                <tr>
+                    <td style="border-left:none; border-bottom:none; padding: 2px 10px;">
+                        <label class="check-container"><span>Examen psico-evaluativo</span> <input type="checkbox"><span class="check-box"></span></label>
+                    </td>
+                    <td style="border-right:none; border-bottom:none; padding: 2px 4px;"><div contenteditable="true" style="width: 100%;"></div></td>
+                </tr>
+            </table>
+        </div>
+
+        <div class="border-box">
+            <div class="section-title" style="margin-bottom: 0;">De conformidad con el resultado de dichos exámenes, se le considera:</div>
+            <div style="display: flex; justify-content: space-around; padding: 8px 10px;">
+                <label class="check-container"><span>APTO (A)</span> <input type="checkbox"><span class="check-box"></span></label>
+                <label class="check-container"><span>APTO (A) CON RESTRICCIÓN</span> <input type="checkbox"><span class="check-box"></span></label>
+                <label class="check-container"><span>INAPTO (A)</span> <input type="checkbox"><span class="check-box"></span></label>
+            </div>
+            <div style="padding: 4px 8px; border-top: 1px solid var(--borde-color);">
+                <strong>OBSERVACIONES:</strong> (Anotar restricciones)
+                <div contenteditable="true" style="width: 100%; border-bottom: 1px solid #ccc; margin-top: 2px; height: 14px;"></div>
+                <div contenteditable="true" style="width: 100%; border-bottom: 1px solid #ccc; margin-top: 2px; height: 14px;"></div>
+                <div contenteditable="true" style="width: 100%; border-bottom: 1px solid #ccc; margin-top: 2px; height: 14px;"></div>
+            </div>
+        </div>
+
+        <div class="firmas-grid">
+            <div class="firma-box" style="background-image: url('firma_general.jpg');">
+                <div class="firma-title">FIRMA Y SELLO DEL MÉDICO GENERAL</div>
+            </div>
+            <div class="firma-box" style="background-image: url('firma_otorrino.jpg');">
+                <div class="firma-title">FIRMA Y SELLO DEL MÉDICO OTORRINOLARINGÓLOGO</div>
+            </div>
+            <div class="firma-box director-box" style="background-image: url('firma_director.jpg');">
+                <div class="firma-title">FIRMA Y SELLO DEL DIRECTOR MÉDICO</div>
+            </div>
+            <div class="firma-box" style="background-image: url('firma_oftalmologo.jpg');">
+                <div class="firma-title">FIRMA Y SELLO DEL MÉDICO OFTALMÓLOGO</div>
+            </div>
+            <div class="firma-box" style="background-image: url('firma_psicologo.jpg');">
+                <div class="firma-title">FIRMA Y SELLO DEL PSICÓLOGO</div>
+            </div>
+        </div>
+
+    </div>
+
+    <script>
+        // DICCIONARIO ACTUALIZADO CON TODAS TUS SEDES
+        const direcciones = {
+            "Lima": "Clínica Universitaria S.A.C.: Av. Universitaria 6062, Urb. Santa Luzmila, Comas.",
+            "Trujillo": "El Redentor Servicios Médicos: Ubicado en la Av. Los Incas 130.",
+            "Piura": "Centro Médico Suaval: Urb. 4 de enero, Calle Los Ficus N° 145, Piura.",
+            "Ica": "San Luis Medic: Calle Sebastián Barranca 128, Urb. San Miguel, Ica.",
+            "Pasco": "A & M TRADING E.I.R.L., ubicado en la Av. Micaela Bastidas Nº 317, Urb. San Juan Pampa, en Yanacancha.",
+            "Moquegua": "Policlínico Sersimedic S.A.C. (Calle Omate N° 123) y Centro Médico Especializado MMD-4M E.I.R.L. (Calle Junín N° 321).",
+            "Junin": "Policlínico Brevete Huancayo S.A.C. (Jr. Mariscal Castilla 498, Chilca)",
+            "MadreDeDios": "Policlínico Andralex E.I.R.L., ubicado en el Jr. Gonzales Prada N° 283 (Tambopata, Puerto Maldonado)",
+            "Tacna": "Policlínico José Bendito: Av. Jorge Basadre Sur s/n (frente a la DRTC).",
+            "Puno": "Centro Médico Jove Andina: Jr. Ramón Castilla Nº 137, Puno.",
+            "SanMartin": "Centro Médico C. Roldan S.A.C. Dirección: Jr. Cuzco N° 157",
+            "Tumbes": "Med Car Norte E.I.R.L. (Centro Médico Santa Rosa) Dirección: Av. Tumbes Norte N° 1377",
+            "Ucayali": "Hospital Regional de Pucallpa (HRP): Ubicado en el área de contingencia, Av. Yarinacocha (distrito de Yarinacocha).",
+            "Loreto": "Centro Médico Iquitos Vida: Calle Moore 1684.",
+            "Lambayeque": "Centro Médico Cemel E.I.R.L.: Calle Las Ñustas 546 (La Victoria, Chiclayo).",
+            "Huanuco": "Centro de Salud “El Samaritano S.R.”: Jr. Hermilio Valdizán N° 644.",
+            "Huancavelica": "Clínica Vida, ubicada en la Av. Andrés Avelino Cáceres 546",
+            "Cusco": "Centro Médico Salud Integral Cusco SAC: Ubicado estratégicamente en la zona.",
+            "Cajamarca": "Clínica San Lorenzo: Ubicada en la Av. San Martín de Porres N° 546.",
+            "Ayacucho": "Clínica María del Pilar: Av. 26 de Enero N° 396, Ayacucho.",
+            "Apurimac": "Asociación Civil Santa Teresa - Abancay Dirección: Av. Enrique Pelasch S/N, Abancay",
+            "Ancash": "Centro Médico Dr. Solorzano S.A.C. Dirección: Av. Pedro Pablo Atusparia 1227 (Huaraz)",
+            "Amazonas": "Centro Médico Virgen del Carmen (Jr. Grau 603)",
+            "Arequipa": "Policlínico Santísimo Sagrado Corazón de Jesús S.A.C. Dirección: Av. Kennedy N° 1505, Paucarpata"
+        };
+
+        function actualizarDireccion() {
+            const seleccion = document.getElementById("centroSalud").value;
+            const campoDir = document.getElementById("direccionText");
+            campoDir.innerText = direcciones[seleccion] || "";
+        }
+
+        function configurarFechaActual() {
+            const ahora = new Date();
+            const opciones = { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: true };
+            document.getElementById('fecha-hora-exacta').innerText = ahora.toLocaleString('es-PE', opciones);
+        }
+        configurarFechaActual();
+
+        // -------------------------------------------------------------
+        // FUNCIÓN PARA CARGAR LA FOTO AL HACER CLIC
+        // -------------------------------------------------------------
+        function cargarFoto(event) {
+            const file = event.target.files[0];
+            if (file) {
+                const reader = new FileReader();
+                reader.onload = function(e) {
+                    const box = document.getElementById('box-foto');
+                    box.style.backgroundImage = `url('${e.target.result}')`;
+                    box.innerHTML = ''; // Borra el texto de "Foto Actual..." al cargar la imagen
+                };
+                reader.readAsDataURL(file);
+            }
+        }
+
+        // ─── URL de tu función en Vercel ────────────────────────────
+        // Mientras desarrollas localmente usa "/api/send-email"
+        // Cuando subas a Vercel, esta misma ruta sigue funcionando
+        const API_URL = "/api/send-email";
+
+        // ─── Genera el PDF y lo retorna como objeto jsPDF ────────────
+        async function generarPDF() {
+            const hoja = document.getElementById("hoja-medico");
+            const canvas = await html2canvas(hoja, {
+                scale: 2,
+                useCORS: true,
+                allowTaint: true,
+                logging: false
+            });
+            const imgData = canvas.toDataURL("image/jpeg", 0.95);
+            const { jsPDF } = window.jspdf;
+            const pdf = new jsPDF({ orientation: "portrait", unit: "mm", format: "a4" });
+            pdf.addImage(imgData, "JPEG", 0, 0, 210, 297);
+            return pdf;
+        }
+
+        // ─── Botón DESCARGAR PDF ─────────────────────────────────────
+        async function descargarPDF() {
+            const btn = document.querySelector('.btn-print');
+            btn.innerText = "⏳ GENERANDO...";
+            btn.disabled = true;
+            try {
+                const pdf = await generarPDF();
+                const nombre = document.getElementById('nombrePostulante').innerText.trim() || 'certificado';
+                pdf.save(`Certificado_${nombre}.pdf`);
+            } catch (err) {
+                alert("❌ Error al generar el PDF");
+                console.error(err);
+            }
+            btn.innerText = "📥 DESCARGAR PDF";
+            btn.disabled = false;
+        }
+
+        // ─── Botón ENVIAR POR CORREO (con PDF adjunto real via Resend) ─
+        async function enviarTodo() {
+            const email = document.getElementById('emailDestino').value.trim();
+            if (!email || !email.includes('@')) {
+                alert("⚠️ Ingrese un correo electrónico válido.");
+                return;
+            }
+
+            const btn = document.querySelector('.btn-action');
+            btn.innerText = "⏳ GENERANDO PDF...";
+            btn.disabled = true;
+
+            try {
+                // 1) Generar PDF
+                const pdf = await generarPDF();
+
+                // 2) Convertir a base64 (sin el prefijo data URI)
+                const pdfBase64 = pdf.output("datauristring");
+
+                // 3) Recoger datos del formulario
+                const nombre = document.getElementById('nombrePostulante').innerText.trim() || 'No especificado';
+                const dni    = document.getElementById('dniPostulante').innerText.trim()    || '---';
+                const sedeSelect = document.getElementById('centroSalud');
+                const sede = sedeSelect.options[sedeSelect.selectedIndex]?.text || '---';
+                const fecha = document.getElementById('fecha-hora-exacta').innerText;
+
+                let resultado = '---';
+                document.querySelectorAll('label.check-container').forEach(label => {
+                    const input = label.querySelector('input[type=checkbox]');
+                    if (input && input.checked) {
+                        const texto = label.querySelector('span')?.innerText || '';
+                        if (['APTO (A)', 'APTO (A) CON RESTRICCIÓN', 'INAPTO (A)'].includes(texto)) {
+                            resultado = texto;
+                        }
+                    }
+                });
+
+                btn.innerText = "📨 ENVIANDO CORREO...";
+
+                // 4) Llamar a la función de Vercel
+                const response = await fetch(API_URL, {
+                    method: "POST",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify({
+                        to_email:   email,
+                        pdf_base64: pdfBase64,
+                        nombre,
+                        dni,
+                        sede,
+                        resultado,
+                        fecha
+                    })
+                });
+
+                const data = await response.json();
+
+                if (!response.ok) {
+                    throw new Error(data.error || "Error desconocido del servidor");
+                }
+
+                alert(`✅ ¡Correo enviado a ${email} con el PDF adjunto!`);
+
+            } catch (error) {
+                console.error("Error:", error);
+                alert("❌ Error al enviar:\n" + (error?.message || JSON.stringify(error)));
+            }
+
+            btn.innerText = "📧 ENVIAR POR CORREO";
+            btn.disabled = false;
+        }
+    </script>
+</body>
+</html>
