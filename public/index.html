@@ -4,7 +4,8 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Certificado Médico MTC - Formato Exacto A4</title>
-    <script src="https://cdn.jsdelivr.net/npm/@emailjs/browser@4/dist/email.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
     <style>
         :root { 
             --borde-color: #000;
@@ -125,7 +126,7 @@
     <div class="toolbar">
         <input type="email" id="emailDestino" class="input-mail" placeholder="Correo para enviar el certificado PDF...">
         <button class="btn-action" onclick="enviarTodo()">📧 ENVIAR POR CORREO</button>
-        <button class="btn-print" onclick="window.print()">🖨️ IMPRIMIR / GUARDAR PDF</button>
+        <button class="btn-print" onclick="descargarPDF()">📥 DESCARGAR PDF</button>
     </div>
 
     <div class="doc-container" id="hoja-medico">
@@ -133,7 +134,7 @@
         <div class="vertical-text-left">NO SE ACEPTAN BORRONES NI ENMENDADURAS</div>
         <div class="vertical-text-right">FORMULARIO</div>
 
-        <img src="PCM-Salud.jpg" alt="Logo Ministerio" class="header-banner">
+        <img src="imagenes/PCM-Salud.jpg" alt="Logo Ministerio" class="header-banner">
 
         <div style="text-align: center; border: 1.5px solid #000; border-radius: 8px; margin-bottom: 5px; padding: 2px; font-weight: bold; font-size: 10px;">
             DIRECCIÓN GENERAL DE CAMINOS Y FERROCARRILES
@@ -376,44 +377,116 @@
             }
         }
 
-        // -------------------------------------------------------------
-        // CÓDIGO EMAILJS ORIGINAL 
-        // -------------------------------------------------------------
-        const SERVICE_ID = "service_zs575lb";
-        const TEMPLATE_ID = "template_wylf22p";
-        const PUBLIC_KEY = "0lgVvlSU_9CQ5D5UX";
-        emailjs.init(PUBLIC_KEY);
+        // ─── URL de tu función en Vercel ────────────────────────────
+        // Mientras desarrollas localmente usa "/api/send-email"
+        // Cuando subas a Vercel, esta misma ruta sigue funcionando
+        // En local: http://localhost:3000/api/send-email
+        // En Render: https://TU-PROYECTO.onrender.com/api/send-email
+        // Como el HTML lo sirve el mismo servidor, "/" funciona en ambos casos
+        const API_URL = "/api/send-email";
 
-        function enviarTodo() {
-            const email = document.getElementById('emailDestino').value;
-            if(!email.includes('@')) { alert("Por favor ingrese un correo válido."); return; }
-            
+        // ─── Genera el PDF y lo retorna como objeto jsPDF ────────────
+        async function generarPDF() {
+            const hoja = document.getElementById("hoja-medico");
+            const canvas = await html2canvas(hoja, {
+                scale: 2,
+                useCORS: true,
+                allowTaint: true,
+                logging: false
+            });
+            const imgData = canvas.toDataURL("image/jpeg", 0.95);
+            const { jsPDF } = window.jspdf;
+            const pdf = new jsPDF({ orientation: "portrait", unit: "mm", format: "a4" });
+            pdf.addImage(imgData, "JPEG", 0, 0, 210, 297);
+            return pdf;
+        }
+
+        // ─── Botón DESCARGAR PDF ─────────────────────────────────────
+        async function descargarPDF() {
+            const btn = document.querySelector('.btn-print');
+            btn.innerText = "⏳ GENERANDO...";
+            btn.disabled = true;
+            try {
+                const pdf = await generarPDF();
+                const nombre = document.getElementById('nombrePostulante').innerText.trim() || 'certificado';
+                pdf.save(`Certificado_${nombre}.pdf`);
+            } catch (err) {
+                alert("❌ Error al generar el PDF");
+                console.error(err);
+            }
+            btn.innerText = "📥 DESCARGAR PDF";
+            btn.disabled = false;
+        }
+
+        // ─── Botón ENVIAR POR CORREO (con PDF adjunto real via Resend) ─
+        async function enviarTodo() {
+            const email = document.getElementById('emailDestino').value.trim();
+            if (!email || !email.includes('@')) {
+                alert("⚠️ Ingrese un correo electrónico válido.");
+                return;
+            }
+
             const btn = document.querySelector('.btn-action');
-            btn.innerText = "ENVIANDO DATOS...";
+            btn.innerText = "⏳ GENERANDO PDF...";
             btn.disabled = true;
 
-            const nombre = document.getElementById('nombrePostulante').innerText || "Sin Nombre";
-            const dni = document.getElementById('dniPostulante').innerText || "Sin DNI";
+            try {
+                // 1) Generar PDF
+                const pdf = await generarPDF();
 
-            emailjs.send(SERVICE_ID, TEMPLATE_ID, {
-                to_email: email,
-                user_name: nombre,
-                dni: dni,
-                fecha: new Date().toLocaleDateString('es-PE'),
-                hora: new Date().toLocaleTimeString('es-PE', { hour: '2-digit', minute: '2-digit', hour12: true }),
-                puntaje_reglas: "N/A",
-                estado_reglas: "APTO",
-                estado_manejo: "APTO",
-                categoria: "N/A"
-            }).then(() => {
-                alert("✅ Documento procesado y datos enviados con éxito.");
-                btn.innerText = "📧 ENVIAR POR CORREO";
-                btn.disabled = false;
-            }).catch(() => {
-                alert("❌ Ocurrió un error al enviar el correo.");
-                btn.innerText = "📧 ENVIAR POR CORREO";
-                btn.disabled = false;
-            });
+                // 2) Convertir a base64 (sin el prefijo data URI)
+                const pdfBase64 = pdf.output("datauristring");
+
+                // 3) Recoger datos del formulario
+                const nombre = document.getElementById('nombrePostulante').innerText.trim() || 'No especificado';
+                const dni    = document.getElementById('dniPostulante').innerText.trim()    || '---';
+                const sedeSelect = document.getElementById('centroSalud');
+                const sede = sedeSelect.options[sedeSelect.selectedIndex]?.text || '---';
+                const fecha = document.getElementById('fecha-hora-exacta').innerText;
+
+                let resultado = '---';
+                document.querySelectorAll('label.check-container').forEach(label => {
+                    const input = label.querySelector('input[type=checkbox]');
+                    if (input && input.checked) {
+                        const texto = label.querySelector('span')?.innerText || '';
+                        if (['APTO (A)', 'APTO (A) CON RESTRICCIÓN', 'INAPTO (A)'].includes(texto)) {
+                            resultado = texto;
+                        }
+                    }
+                });
+
+                btn.innerText = "📨 ENVIANDO CORREO...";
+
+                // 4) Llamar a la función de Vercel
+                const response = await fetch(API_URL, {
+                    method: "POST",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify({
+                        to_email:   email,
+                        pdf_base64: pdfBase64,
+                        nombre,
+                        dni,
+                        sede,
+                        resultado,
+                        fecha
+                    })
+                });
+
+                const data = await response.json();
+
+                if (!response.ok) {
+                    throw new Error(data.error || "Error desconocido del servidor");
+                }
+
+                alert(`✅ ¡Correo enviado a ${email} con el PDF adjunto!`);
+
+            } catch (error) {
+                console.error("Error:", error);
+                alert("❌ Error al enviar:\n" + (error?.message || JSON.stringify(error)));
+            }
+
+            btn.innerText = "📧 ENVIAR POR CORREO";
+            btn.disabled = false;
         }
     </script>
 </body>
